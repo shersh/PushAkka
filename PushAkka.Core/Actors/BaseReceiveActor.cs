@@ -26,7 +26,6 @@ namespace PushAkka.Core.Actors
         protected void Warning(string format, params object[] objects)
         {
             _log.Warning(format, objects);
-
         }
 
         protected void Error(string format, params object[] objects)

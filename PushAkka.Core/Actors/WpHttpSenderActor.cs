@@ -54,6 +54,10 @@ namespace PushAkka.Core.Actors
                 catch (Exception ex)
                 {
                     Error(ex, "Error during Windows Phone push-notification sending");
+                    if (ex is WebException)
+                    {
+                        var responce = ParseResponce((HttpWebResponse)(ex as WebException).Response);
+                    }
                     Sender.Tell(new SendFailed { Reason = ex });
                 }
 
@@ -94,12 +98,12 @@ namespace PushAkka.Core.Actors
             }
             Info(builder.ToString());
 
-            var res = new WpPushResult();
-
             var wpStatus = response.Headers["X-NotificationStatus"];
             var wpChannelStatus = response.Headers["X-SubscriptionStatus"];
             var wpDeviceConnectionStatus = response.Headers["X-DeviceConnectionStatus"];
             var messageId = response.Headers["X-MessageID"];
+
+            var res = new WpPushResult();
 
             WpNotificationStatus notStatus;
             Enum.TryParse(wpStatus, true, out notStatus);
@@ -116,8 +120,9 @@ namespace PushAkka.Core.Actors
         /// <returns></returns>
         private WebRequest CreateRequest(Request req)
         {
-            var request = WebRequest.Create(req.Uri);
+            var request = (HttpWebRequest)WebRequest.Create(req.Uri);
 
+            request.UserAgent = "PushAkka service";
             request.ContentType = "text/xml;charset=\"utf-8\"";
             request.Method = "POST";
 
