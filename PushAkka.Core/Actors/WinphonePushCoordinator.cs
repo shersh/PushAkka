@@ -20,7 +20,6 @@ namespace PushAkka.Core.Actors
             Receive<NotificationResult>(result =>
             {
                 Context.IncrementCounter(result.IsSuccess ? "success_push_notification" : "failed_push_notification");
-
                 Info("Message \"{0}\" sent: {1}", result.Id, result.IsSuccess);
             });
         }
@@ -34,8 +33,10 @@ namespace PushAkka.Core.Actors
 
         protected override void PreStart()
         {
-            _winPhonePushRouter = Context.ActorOf(Props.Create<WindowsPhonePushActor>().WithRouter(new RoundRobinPool(5)), "WP_PushActor");
-
+            _winPhonePushRouter = Context
+                .ActorOf(Props.Create<WindowsPhonePushActor>()
+                .WithRouter(FromConfig.Instance.WithFallback(new NoRouter())),
+                "WP_PushActor");
             base.PreStart();
         }
     }

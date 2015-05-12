@@ -193,7 +193,7 @@ namespace PushAkka.Core.Actors
 
         protected override void PreStart()
         {
-            Debug("Started");
+            Info("Started");
             _httpSender = Context.ActorOf(Props.Create<WpHttpSenderActor>(), "push_sender");
             base.PreStart();
         }

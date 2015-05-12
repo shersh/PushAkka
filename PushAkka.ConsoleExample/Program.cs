@@ -9,39 +9,48 @@ namespace PushAkka.ConsoleTest
 {
     class Program
     {
+        private static IActorRef _pushManager;
+
         static void Main(string[] args)
         {
-            var system = ActorSystem.Create("AkkaPush", "akka { logLevel=DEBUG }");
-            var pushManager = system.ActorOf<PushManager>("push_manager");
+            var system = ActorSystem.Create("AkkaPush");
+            _pushManager = system.ActorOf<PushManager>("push_manager");
 
             var options = new Options();
             if (Parser.Default.ParseArguments(args, options))
             {
-                switch (options.Type)
-                {
-                    case DeviceType.WinPhone:
-                        pushManager.Tell(new WindowsPhoneToast()
-                        {
-                            MessageId = Guid.NewGuid(),
-                            Text1 = options.Text,
-                            Uri = options.Token
-                        });
-                        break;
-                    case DeviceType.Windows:
-                        break;
-                    case DeviceType.Android:
-                        break;
-                    case DeviceType.Apple:
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
+                Send(options);
+                Console.ReadLine();
             }
+        }
 
-            Console.ReadLine();
+        private static void Send(Options options)
+        {
+            switch (options.Type)
+            {
+                case DeviceType.WinPhone:
+                    _pushManager.Tell(new WindowsPhoneToast()
+                    {
+                        MessageId = Guid.NewGuid(),
+                        Text1 = options.Text,
+                        Uri = options.Token
+                    });
+                    break;
+                case DeviceType.Windows:
+                    break;
+                case DeviceType.Android:
+                    break;
+                case DeviceType.Apple:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
     }
 
+    /// <summary>
+    /// Command line options
+    /// </summary>
     class Options
     {
         [Option('d', "dev_type", Required = true,
@@ -67,7 +76,9 @@ namespace PushAkka.ConsoleTest
         }
     }
 
-
+    /// <summary>
+    /// Type of device specified in command line
+    /// </summary>
     internal enum DeviceType
     {
         WinPhone,
