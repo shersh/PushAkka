@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using Akka.Actor;
 using Akka.Monitoring;
@@ -9,6 +11,9 @@ namespace PushAkka.Core.Actors
 {
     public class WpHttpSenderActor : BaseReceiveActor
     {
+        private IActorRef _parent = NoSender.Instance;
+        private Request _request;
+
         internal class SendFailed
         {
             public Exception Reason { get; set; }
@@ -25,44 +30,88 @@ namespace PushAkka.Core.Actors
             Context.IncrementActorCreated();
             Context.IncrementCounter("WpHttpSenderActor_created");
 
+            Receive<Status.Failure>(fail =>
+            {
+                SendFail(fail.Cause);
+            });
+
+            Receive<Exception>(ex =>
+            {
+                SendFail(ex);
+            });
+
+            Receive<HttpResponseMessage>(responce =>
+            {
+                var result = ParseResponce(responce);
+                if (result.NotificationStatus != WpNotificationStatus.Received)
+                {
+                    SendFail(new WindowsPhonePushChannelException(result.NotificationStatus));
+                }
+                else
+                {
+                    _parent.Tell(new SendSuccess() { Id = result.MessageId });
+                }
+            });
+
             Receive<Request>(req =>
             {
                 Info("Sending request to \"{0}\"", req.Uri);
-                var request = CreateRequest(req);
-                WpPushResult result = null;
-
-                try
-                {
-                    using (var stream = request.GetRequestStream())
-                    {
-                        stream.Write(req.Content, 0, req.Content.Length);
-                    }
-
-                    var response = request.GetResponse();
-                    result = ParseResponce(response as HttpWebResponse);
-
-                    if (result.NotificationStatus != WpNotificationStatus.Received)
-                    {
-                        Warning("Sending Windows Phone notication has been failed.\nStatus: {0}\nSee logs.", result.NotificationStatus);
-                        Sender.Tell(new SendFailed { Id = req.MessageId, Reason = new WindowsPhonePushChannelException(result.NotificationStatus) });
-                    }
-                    else
-                    {
-                        Sender.Tell(new SendSuccess() { Id = req.MessageId });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Error(ex, "Error during Windows Phone push-notification sending");
-                    if (ex is WebException)
-                    {
-                        var responce = ParseResponce((HttpWebResponse)(ex as WebException).Response);
-                    }
-                    Sender.Tell(new SendFailed { Reason = ex });
-                }
-
-                Sender.Tell(result);
+                _parent = Sender;
+                _request = req;
+                HttpClient client = new HttpClient();
+                var request = CreateHttpRequest(req);
+                client.SendAsync(request).PipeTo(Self);
             });
+        }
+
+        private void SendFail(Exception ex)
+        {
+            Warning("Sending Windows Phone notication has been failed.\nSee logs.");
+            _parent.Tell(new SendFailed { Id = _request.MessageId, Reason = ex });
+        }
+
+        private WpPushResult ParseResponce(HttpResponseMessage response)
+        {
+            var wpStatus = "";
+            var wpChannelStatus = "";
+            var wpDeviceConnectionStatus = "";
+            var messageId = "";
+
+
+            StringBuilder builder = new StringBuilder();
+            builder.AppendFormat("Responce: {1}, {2}\nFrom: {0}\n", response.RequestMessage.RequestUri, response.StatusCode, response.ReasonPhrase);
+            foreach (var key in response.Headers)
+            {
+                builder.AppendFormat("    {0}: {1}", key.Key, string.Join(";", key.Value));
+                builder.AppendLine();
+                switch (key.Key)
+                {
+                    case "X-NotificationStatus":
+                        wpStatus = key.Value.FirstOrDefault();
+                        break;
+                    case "X-SubscriptionStatus":
+                        wpChannelStatus = key.Value.FirstOrDefault();
+                        break;
+                    case "X-DeviceConnectionStatus":
+                        wpDeviceConnectionStatus = key.Value.FirstOrDefault();
+                        break;
+                    case "X-MessageID":
+                        messageId = key.Value.FirstOrDefault();
+                        break;
+                }
+            }
+            Info(builder.ToString());
+
+            var res = new WpPushResult();
+
+            WpNotificationStatus notStatus;
+            Enum.TryParse(wpStatus, true, out notStatus);
+            res.NotificationStatus = notStatus;
+
+            if (!string.IsNullOrEmpty(messageId))
+                res.MessageId = Guid.Parse(messageId);
+
+            return res;
         }
 
 
@@ -76,58 +125,9 @@ namespace PushAkka.Core.Actors
         }
 
 
-        /// <summary>
-        /// Parses the HttpWebResponse responce and returns WpPushResult.
-        /// </summary>
-        /// <param name="response"></param>
-        /// <returns></returns>
-        private WpPushResult ParseResponce(HttpWebResponse response)
+        private HttpRequestMessage CreateHttpRequest(Request req)
         {
-            StringBuilder builder = new StringBuilder();
-            builder.AppendFormat("Responce: {1}, {2}\nFrom: {0}\n", response.ResponseUri, response.StatusCode, response.StatusDescription);
-            foreach (var key in response.Headers.AllKeys)
-            {
-                var value = response.Headers.GetValues(key);
-                builder.AppendFormat("    {0}: ", key);
-                if (value != null)
-                {
-                    var @join = string.Join("; ", value);
-                    builder.Append(string.Format("{0}", @join));
-                }
-                builder.AppendLine();
-            }
-            Info(builder.ToString());
-
-            var wpStatus = response.Headers["X-NotificationStatus"];
-            var wpChannelStatus = response.Headers["X-SubscriptionStatus"];
-            var wpDeviceConnectionStatus = response.Headers["X-DeviceConnectionStatus"];
-            var messageId = response.Headers["X-MessageID"];
-
-            var res = new WpPushResult();
-
-            WpNotificationStatus notStatus;
-            Enum.TryParse(wpStatus, true, out notStatus);
-            res.NotificationStatus = notStatus;
-
-            return res;
-        }
-
-
-        /// <summary>
-        /// Generates web request to push-channel
-        /// </summary>
-        /// <param name="req">The req.</param>
-        /// <returns></returns>
-        private WebRequest CreateRequest(Request req)
-        {
-            var request = (HttpWebRequest)WebRequest.Create(req.Uri);
-
-            request.UserAgent = "PushAkka service";
-            request.ContentType = "text/xml;charset=\"utf-8\"";
-            request.Method = "POST";
-
-            request.ContentType = req.ContentType;
-            request.ContentLength = req.Content != null ? req.Content.Length : 0;
+            var request = new HttpRequestMessage(HttpMethod.Post, req.Uri) { Content = new StringContent(req.Content, Encoding.UTF8, "text/xml") };
 
             request.Headers.Add("X-NotificationClass", req.XNotificationClass);
             request.Headers.Add("X-WindowsPhone-Target", req.XWindowsPhoneTarget);
@@ -140,6 +140,7 @@ namespace PushAkka.Core.Actors
         {
             public WpNotificationStatus NotificationStatus { get; set; }
             public long Id { get; set; }
+            public Guid MessageId { get; set; }
         }
     }
 }
