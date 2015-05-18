@@ -21,12 +21,6 @@ namespace PushAkka.Core.Actors
                 _winPhonePushRouter.Tell(push);
                 Context.IncrementCounter("windows_phone_push_notification");
             });
-
-            Receive<NotificationResult>(result =>
-            {
-                Context.IncrementCounter(result.IsSuccess ? "success_push_notification" : "failed_push_notification");
-                Info("Message \"{0}\" sent: {1}", result.Id, result.IsSuccess);
-            });
         }
 
         protected override void Unhandled(object message)

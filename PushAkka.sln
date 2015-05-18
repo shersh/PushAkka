@@ -1,9 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PushAkka.Core", "PushAkka.Core\PushAkka.Core.csproj", "{9291BC26-6D2B-4138-8280-49A0D809DD7D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PushAkka.ConsoleTest", "PushAkka.ConsoleExample\PushAkka.ConsoleTest.csproj", "{365CEC69-7F10-4B3C-B58F-C776399DE25E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PushAkka.JustPushLib", "PushAkka.JustPushLib\PushAkka.JustPushLib.csproj", "{51F9308F-A495-4577-950B-C7BA2F6F7311}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -19,6 +23,10 @@ Global
 		{365CEC69-7F10-4B3C-B58F-C776399DE25E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{365CEC69-7F10-4B3C-B58F-C776399DE25E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{365CEC69-7F10-4B3C-B58F-C776399DE25E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51F9308F-A495-4577-950B-C7BA2F6F7311}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51F9308F-A495-4577-950B-C7BA2F6F7311}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51F9308F-A495-4577-950B-C7BA2F6F7311}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51F9308F-A495-4577-950B-C7BA2F6F7311}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

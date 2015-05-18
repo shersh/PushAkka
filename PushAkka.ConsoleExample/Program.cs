@@ -1,54 +1,29 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Akka.Actor;
 using CommandLine;
 using CommandLine.Text;
 using PushAkka.Core.Actors;
 using PushAkka.Core.Messages;
+using PushAkka.JustPushLib;
 using Serilog;
 
 namespace PushAkka.ConsoleTest
 {
-    class PushResultReceiver : BaseReceiveActor
-    {
-        public PushResultReceiver()
-        {
-            Receive<NotificationResult>(res =>
-            {
-
-            });
-        }
-
-        protected override void Unhandled(object message)
-        {
-            base.Unhandled(message);
-        }
-    }
-
     class Program
     {
         private static IActorRef _pushManager;
 
         static void Main(string[] args)
         {
-            var logger = new LoggerConfiguration()
-                .WriteTo
-                //.File("E:\\akka.log")
-                .ColoredConsole()
-                .MinimumLevel.Information()
-                .CreateLogger();
-
-            Serilog.Log.Logger = logger;
-
-            var system = ActorSystem.Create("AkkaPush");
-            var receiver = system.ActorOf<PushResultReceiver>();
-            _pushManager = system.ActorOf(Props.Create<PushManager>(receiver), "push_manager");
-
             var options = new Options();
             if (Parser.Default.ParseArguments(args, options))
             {
                 Send(options);
                 Console.ReadLine();
             }
+            // For debug only
+#if DEBUG
             else
             {
                 for (int i = 0; i < 1; i++)
@@ -63,14 +38,17 @@ namespace PushAkka.ConsoleTest
                 }
                 Console.ReadLine();
             }
+#endif
         }
 
-        private static void Send(Options options)
+        private static async void Send(Options options)
         {
+            JustPush push = new JustPush();
+
             switch (options.Type)
             {
                 case DeviceType.WinPhone:
-                    _pushManager.Tell(new WindowsPhoneToast()
+                    var result = await push.Send(new WindowsPhoneToast()
                     {
                         MessageId = Guid.NewGuid(),
                         Text1 = options.Text,

@@ -22,7 +22,6 @@ namespace PushAkka.Core.Actors
         protected override void PreStart()
         {
             _wpCoordinator = Context.ActorOf(Props.Create<WinphonePushCoordinator>(_whoWaitToReply), "WinPhoneCoordinator");
-
             base.PreStart();
         }
     }
