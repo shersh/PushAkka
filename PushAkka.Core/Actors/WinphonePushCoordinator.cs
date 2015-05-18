@@ -10,10 +10,12 @@ namespace PushAkka.Core.Actors
 {
     public class WinphonePushCoordinator : BaseReceiveActor
     {
+        private readonly IActorRef _whoWaitToReply;
         private IActorRef _winPhonePushRouter;
 
-        public WinphonePushCoordinator()
+        public WinphonePushCoordinator(IActorRef whoWaitToReply)
         {
+            _whoWaitToReply = whoWaitToReply;
             Receive<BaseWindowsPhonePushMessage>(push =>
             {
                 _winPhonePushRouter.Tell(push);
@@ -37,7 +39,7 @@ namespace PushAkka.Core.Actors
         protected override void PreStart()
         {
             _winPhonePushRouter = Context
-                .ActorOf(Props.Create<WindowsPhonePushActor>()
+                .ActorOf(Props.Create<WindowsPhonePushActor>(_whoWaitToReply)
                 .WithRouter(FromConfig.Instance.WithFallback(new NoRouter())),
                 "WP_PushActor");
             base.PreStart();

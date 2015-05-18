@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
+using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Xml.Linq;
 using Akka.Actor;
@@ -15,24 +17,23 @@ namespace PushAkka.Core.Actors
     public class WindowsPhonePushActor : BaseReceiveActor, IWithUnboundedStash
     {
         /// <summary>
+        /// Actor that initiated push notification
+        /// </summary>
+        private readonly IActorRef _whoWaitReply;
+
+        /// <summary>
         /// Push Channel actor that working with network and send request
         /// </summary>
         private IActorRef _httpSender;
-
-        /// <summary>
-        /// Actor that initiated push notification
-        /// </summary>
-        private IActorRef _sender;
 
         /// <summary>
         /// The current message
         /// </summary>
         private BaseWindowsPhonePushMessage _currentMessage;
 
-        private int _retryCount;
-
-        public WindowsPhonePushActor()
+        public WindowsPhonePushActor(IActorRef whoWaitReply)
         {
+            _whoWaitReply = whoWaitReply;
             CountOfReties = 5;
             Become(Ready);
         }
@@ -55,26 +56,14 @@ namespace PushAkka.Core.Actors
             Receive<WindowsPhoneToast>(toast =>
             {
                 Context.IncrementCounter("windows_phone_toast_notification");
-                if (_sender.IsNobody())
-                    _sender = Sender;
                 _currentMessage = toast;
                 Become(Processing);
-                var request = PrepareRequest(toast.Uri);
-                request.XNotificationClass = "2";
-                request.XWindowsPhoneTarget = "toast";
-                request.MessageId = toast.MessageId;
-
                 var payload = GetPayload(toast);
-
+                var request = CreateHttpRequest(new Request() { XNotificationClass = "2", XWindowsPhoneTarget = "toast", MessageId = toast.MessageId, Content = payload, Uri = toast.Uri });
                 Info("Payload: {0}", payload);
-
-                //request.Content = Encoding.UTF8.GetBytes(payload);
-                request.Content = payload;
-
                 _httpSender.Tell(request);
             });
         }
-
 
         /// <summary>
         /// Gets the XML payload for sending to push-channel.
@@ -122,18 +111,6 @@ namespace PushAkka.Core.Actors
             return notification.ToString();
         }
 
-
-        /// <summary>
-        /// Prepares the request.
-        /// </summary>
-        /// <param name="uri">The URI of channel specified by device</param>
-        /// <returns></returns>
-        private Request PrepareRequest(string uri)
-        {
-            var request = new Request { Uri = uri };
-            return request;
-        }
-
         /// <summary>
         /// Actor is processing current message and will send <see cref="Busy">Busy</see> message
         /// </summary>
@@ -143,47 +120,96 @@ namespace PushAkka.Core.Actors
             {
                 Context.IncrementCounter("windows_phone_receive_when_busy");
                 Stash.Stash();
-
-                //Sender.Tell(new NotificationQueued() { Id = push.MessageId });
-                //Sender.Tell(new Busy());
             });
 
-            Receive<WpHttpSenderActor.SendFailed>(failed =>
+            Receive<Exception>(failed =>
             {
-                if (failed.Reason is WebException && _retryCount++ < CountOfReties)
+                SendFail(failed);
+                Become(Ready);
+                Stash.Unstash();
+            });
+
+            Receive<HttpResponseMessage>(responce =>
+            {
+                var result = ParseResponce(responce);
+                if (result.NotificationStatus != WpNotificationStatus.Received)
                 {
-                    Become(Ready);
-                    Self.Tell(_currentMessage);
+                    SendFail(new WindowsPhonePushChannelException(result.NotificationStatus));
                 }
                 else
                 {
-                    _sender.Tell(new NotificationResult()
+                    _whoWaitReply.Tell(new NotificationResult()
                     {
-                        Error = failed.Reason,
                         Id = _currentMessage.MessageId
                     });
-                    Clear();
-                    Become(Ready);
-                    Stash.Unstash();
                 }
-            });
 
-            Receive<WpHttpSenderActor.SendSuccess>(res =>
-            {
-                _sender.Tell(new NotificationResult()
-                {
-                    Id = _currentMessage.MessageId
-                });
-                Clear();
                 Become(Ready);
                 Stash.Unstash();
             });
         }
 
-        private void Clear()
+        /// <summary>
+        /// Reply to waiting actor that sending has been failed.
+        /// </summary>
+        /// <param name="ex">The exception occured during sending</param>
+        private void SendFail(Exception ex)
         {
-            _retryCount = 0;
-            _sender = null;
+            Warning("Sending Windows Phone notication has been failed.\nSee logs.");
+            _whoWaitReply.Tell(new NotificationResult()
+            {
+                Id = _currentMessage.MessageId,
+                Error = ex
+            });
+        }
+
+        /// <summary>
+        /// Parses the responce.
+        /// </summary>
+        /// <param name="response">The response.</param>
+        /// <returns></returns>
+        private WpPushResult ParseResponce(HttpResponseMessage response)
+        {
+            var wpStatus = "";
+            var wpChannelStatus = "";
+            var wpDeviceConnectionStatus = "";
+            var messageId = "";
+
+
+            StringBuilder builder = new StringBuilder();
+            builder.AppendFormat("Responce: {1}, {2}\nFrom: {0}\n", response.RequestMessage.RequestUri, response.StatusCode, response.ReasonPhrase);
+            foreach (var key in response.Headers)
+            {
+                builder.AppendFormat("    {0}: {1}", key.Key, string.Join(";", key.Value));
+                builder.AppendLine();
+                switch (key.Key)
+                {
+                    case "X-NotificationStatus":
+                        wpStatus = key.Value.FirstOrDefault();
+                        break;
+                    case "X-SubscriptionStatus":
+                        wpChannelStatus = key.Value.FirstOrDefault();
+                        break;
+                    case "X-DeviceConnectionStatus":
+                        wpDeviceConnectionStatus = key.Value.FirstOrDefault();
+                        break;
+                    case "X-MessageID":
+                        messageId = key.Value.FirstOrDefault();
+                        break;
+                }
+            }
+            Info(builder.ToString());
+
+            var res = new WpPushResult();
+
+            WpNotificationStatus notStatus;
+            Enum.TryParse(wpStatus, true, out notStatus);
+            res.NotificationStatus = notStatus;
+
+            if (!string.IsNullOrEmpty(messageId))
+                res.MessageId = Guid.Parse(messageId);
+
+            return res;
         }
 
         protected override void PreRestart(Exception reason, object message)
@@ -195,10 +221,30 @@ namespace PushAkka.Core.Actors
         protected override void PreStart()
         {
             Info("Started");
-            _httpSender = Context.ActorOf(Props.Create<WpHttpSenderActor>(), "push_sender");
+            _httpSender = Context.ActorOf(Props.Create<HttpSenderActor>(), "push_sender");
             base.PreStart();
+        }
+
+        /// <summary>
+        /// Creates the HTTP request.
+        /// </summary>
+        /// <param name="req">The req.</param>
+        /// <returns></returns>
+        private HttpRequestMessage CreateHttpRequest(Request req)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, req.Uri) { Content = new StringContent(req.Content, Encoding.UTF8, "text/xml") };
+
+            request.Headers.Add("X-NotificationClass", req.XNotificationClass);
+            request.Headers.Add("X-WindowsPhone-Target", req.XWindowsPhoneTarget);
+            request.Headers.Add("X-MessageID", req.MessageId.ToString());
+
+            return request;
         }
     }
 
-  
+    internal class WpPushResult
+    {
+        public WpNotificationStatus NotificationStatus { get; set; }
+        public Guid MessageId { get; set; }
+    }
 }
