@@ -38,6 +38,9 @@
   <PropertyGroup>
     <ApplicationIcon>AkkaNetLogo.ico</ApplicationIcon>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject>PushAkka.ConsoleTest.Program</StartupObject>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Akka">
       <HintPath>..\packages\Akka.1.0.1\lib\net45\Akka.dll</HintPath>
