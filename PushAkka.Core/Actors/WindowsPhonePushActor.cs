@@ -68,7 +68,8 @@ namespace PushAkka.Core.Actors
 
                 Info("Payload: {0}", payload);
 
-                request.Content = Encoding.UTF8.GetBytes(payload);
+                //request.Content = Encoding.UTF8.GetBytes(payload);
+                request.Content = payload;
 
                 _httpSender.Tell(request);
             });
@@ -143,7 +144,7 @@ namespace PushAkka.Core.Actors
                 Context.IncrementCounter("windows_phone_receive_when_busy");
                 Stash.Stash();
 
-                Sender.Tell(new NotificationQueued() { Id = push.MessageId });
+                //Sender.Tell(new NotificationQueued() { Id = push.MessageId });
                 //Sender.Tell(new Busy());
             });
 

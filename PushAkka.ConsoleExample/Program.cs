@@ -4,6 +4,7 @@ using CommandLine;
 using CommandLine.Text;
 using PushAkka.Core.Actors;
 using PushAkka.Core.Messages;
+using Serilog;
 
 namespace PushAkka.ConsoleTest
 {
@@ -13,6 +14,15 @@ namespace PushAkka.ConsoleTest
 
         static void Main(string[] args)
         {
+            var logger = new LoggerConfiguration()
+                .WriteTo
+                .File("E:\\akka.log")
+                //.ColoredConsole()
+                .MinimumLevel.Information()
+                .CreateLogger();
+
+            Serilog.Log.Logger = logger;
+
             var system = ActorSystem.Create("AkkaPush");
             _pushManager = system.ActorOf<PushManager>("push_manager");
 
@@ -20,6 +30,20 @@ namespace PushAkka.ConsoleTest
             if (Parser.Default.ParseArguments(args, options))
             {
                 Send(options);
+                Console.ReadLine();
+            }
+            else
+            {
+                for (int i = 0; i < 1000; i++)
+                {
+                    Send(new Options()
+                    {
+                        Token =
+                            "http://s.notify.live.net/u/1/hk2/H2QAAABm3CnPfua9CJakzRQLwEDbsgH5pV5Fi-nLvjnlWLpejghb38gERasesGmn6u1uOF96Dt7wrxdAO0XwbueeePkRu2KWea-kx2jSlSAPZjcsRNOUb2TbyGsVPJBjDrBr7OU/d2luZG93c3Bob25lZGVmYXVsdA/siwVetYiJkGJhCC3_FYwsA/Etcl2CDCpC8Yv08grtwONdeem94",
+                        Text = i.ToString(),
+                        Type = DeviceType.WinPhone
+                    });
+                }
                 Console.ReadLine();
             }
         }
