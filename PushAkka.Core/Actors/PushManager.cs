@@ -10,7 +10,7 @@ namespace PushAkka.Core.Actors
 
         public PushManager(IActorRef whoWaitToReply)
         {
-            _whoWaitToReply = whoWaitToReply;
+            _whoWaitToReply = whoWaitToReply ?? NoSender.Instance;
             Receive<BaseWindowsPhonePushMessage>(push => _wpCoordinator.Forward(push));
         }
 
