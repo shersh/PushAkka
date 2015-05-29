@@ -14,11 +14,6 @@ namespace PushAkka.Core.Actors
             Receive<BaseWindowsPhonePushMessage>(push => _wpCoordinator.Forward(push));
         }
 
-        protected override void Unhandled(object message)
-        {
-            base.Unhandled(message);
-        }
-
         protected override void PreStart()
         {
             _wpCoordinator = Context.ActorOf(Props.Create<WinphonePushCoordinator>(_whoWaitToReply), "WinPhoneCoordinator");

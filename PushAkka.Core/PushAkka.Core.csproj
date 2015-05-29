@@ -58,6 +58,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Actors\BaseReceiveActor.cs" />
+    <Compile Include="Actors\AndroidPushCoordinator.cs" />
+    <Compile Include="Actors\GCMPushActor.cs" />
     <Compile Include="Actors\PushManager.cs" />
     <Compile Include="Actors\WindowsPhonePushActor.cs" />
     <Compile Include="Actors\WindowsPhonePushChannelException.cs" />
