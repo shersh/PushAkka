@@ -30,8 +30,7 @@ namespace PushAkka.ConsoleTest
                 {
                     Send(new Options()
                     {
-                        Token =
-                            "http://s.notify.live.net/u/1/hk2/H2QAAABm3CnPfua9CJakzRQLwEDbsgH5pV5Fi-nLvjnlWLpejghb38gERasesGmn6u1uOF96Dt7wrxdAO0XwbueeePkRu2KWea-kx2jSlSAPZjcsRNOUb2TbyGsVPJBjDrBr7OU/d2luZG93c3Bob25lZGVmYXVsdA/siwVetYiJkGJhCC3_FYwsA/Etcl2CDCpC8Yv08grtwONdeem94",
+                        Token = "",
                         Text = i.ToString(),
                         Type = DeviceType.WinPhone
                     });
@@ -48,10 +47,12 @@ namespace PushAkka.ConsoleTest
             switch (options.Type)
             {
                 case DeviceType.WinPhone:
-                    var result = await push.Send(new WindowsPhoneToast()
+                    var result = await push.Send(new WindowsPhoneTile()
                     {
                         MessageId = Guid.NewGuid(),
-                        Text1 = options.Text,
+                        BackgroundImage = "for_test.jpg",
+                        Count = 11,
+                        BackContent = "Hello from PushAkka",
                         Uri = options.Token
                     });
                     break;
