@@ -63,7 +63,47 @@ namespace PushAkka.Core.Actors
                 Info("Payload: {0}", payload);
                 _httpSender.Tell(request);
             });
+
+            Receive<WindowsPhoneTile>(tile =>
+            {
+                Context.IncrementCounter("windows_phone_tile_notification");
+                _currentMessage = tile;
+                Become(Processing);
+                var payload = GetPayload(tile);
+                var request = CreateHttpRequest(new Request() { XNotificationClass = "1", XWindowsPhoneTarget = "token", MessageId = tile.MessageId, Content = payload, Uri = tile.Uri });
+                Info("Payload: {0}", payload);
+                _httpSender.Tell(request);
+            });
+
+            Receive<WindowsPhoneRaw>(raw =>
+            {
+                Context.IncrementCounter("windows_phone_raw_notification");
+                _currentMessage = raw;
+                Become(Processing);
+                var payload = GetPayload(raw);
+                var request = CreateHttpRequest(new Request() { XNotificationClass = "3", XWindowsPhoneTarget = "", MessageId = raw.MessageId, Content = payload, Uri = raw.Uri });
+                Info("Payload: {0}", payload);
+                _httpSender.Tell(request);
+            });
         }
+
+
+        /// <summary>
+        /// Gets the payload for raw push notification.
+        /// </summary>
+        /// <param name="push">The push.</param>
+        /// <returns></returns>
+        private string GetPayload(WindowsPhoneRaw push)
+        {
+            // Create the raw message.
+            string rawMessage = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+            "<root>" +
+                "<Value1>" + push.Value1 + "<Value1>" +
+                "<Value2>" + push.Value2 + "<Value2>" +
+            "</root>";
+            return rawMessage;
+        }
+
 
         /// <summary>
         /// Gets the XML payload for sending to push-channel.
@@ -110,6 +150,30 @@ namespace PushAkka.Core.Actors
             notification.Add(toast);
             return notification.ToString();
         }
+
+
+        /// <summary>
+        /// Gets the payload for tile push notification.
+        /// </summary>
+        /// <param name="push">The push.</param>
+        /// <returns></returns>
+        private string GetPayload(WindowsPhoneTile push)
+        {
+            string tileMessage = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                  "<wp:Notification xmlns:wp=\"WPNotification\">" +
+                      "<wp:Tile>" +
+                        "<wp:BackgroundImage>" + push.BackgroundImage + "</wp:BackgroundImage>" +
+                        "<wp:Count>" + push.Count + "</wp:Count>" +
+                        "<wp:Title>" + push.Title + "</wp:Title>" +
+                        "<wp:BackBackgroundImage>" + push.BackBackgroundImage + "</wp:BackBackgroundImage>" +
+                        "<wp:BackTitle>" + push.BackTitle + "</wp:BackTitle>" +
+                        "<wp:BackContent>" + push.BackContent + "</wp:BackContent>" +
+                     "</wp:Tile> " +
+                  "</wp:Notification>";
+
+            return tileMessage;
+        }
+
 
         /// <summary>
         /// Actor is processing current message and will send <see cref="Busy">Busy</see> message
